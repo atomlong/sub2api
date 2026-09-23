@@ -30,7 +30,11 @@ var (
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	// fork-build-only patch (build/accountwide branch, never PRed): point the
+	// in-app updater at the fork's rolling releases so an accidental "update"
+	// fetches the latest accountwide build instead of overwriting it with a
+	// stock upstream binary.
+	githubRepo = "atomlong/sub2api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
