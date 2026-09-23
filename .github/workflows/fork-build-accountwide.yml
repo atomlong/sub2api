@@ -1,12 +1,20 @@
 # Fork-only rolling build for the account_wide feature branch.
 # This branch (build/accountwide) is never PRed upstream; the PR branch
 # stays clean. Rebuild by merging feat/temp-unsched-account-wide into it.
+#
+# Version scheme 9.9.9-accountwide.* is intentionally above upstream
+# (0.1.x): the in-app online updater compares numerically, so it will
+# never offer to "update" this deployment back to a stock upstream build.
 name: Fork Build (accountwide)
 
 on:
   push:
     branches: [build/accountwide]
   workflow_dispatch:
+
+concurrency:
+  group: fork-build-accountwide
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -38,22 +46,32 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run build
 
-      - name: Build backend (embed)
+      - name: Build backend (embed) and package
         working-directory: backend
         run: |
-          VERSION="0.0.0-accountwide.$(date -u +%Y%m%d).$(git rev-parse --short HEAD)"
+          VERSION="9.9.9-accountwide.$(date -u +%Y%m%d).$(git rev-parse --short HEAD)"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           CGO_ENABLED=0 go build -tags embed -trimpath \
-            -ldflags="-s -w -X main.Version=${VERSION} -X main.Commit=$(git rev-parse HEAD) -X main.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -ldflags="-s -w -X main.Version=${VERSION} -X main.Commit=$(git rev-parse HEAD) -X main.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.BuildType=release" \
             -o dist-bin/sub2api ./cmd/server
-          echo "${VERSION}" > dist-bin/VERSION.txt
-          cd dist-bin && tar czf sub2api-linux-amd64.tar.gz sub2api VERSION.txt
+          cd dist-bin
+          tar czf "sub2api_${VERSION}_linux_amd64.tar.gz" sub2api
+          sha256sum "sub2api_${VERSION}_linux_amd64.tar.gz" > checksums.txt
 
-      - name: Roll release (tag accountwide-latest)
+      - name: Publish rolling release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete accountwide-latest --yes --cleanup-tag || true
-          gh release create accountwide-latest \
-            backend/dist-bin/sub2api-linux-amd64.tar.gz \
-            --title "accountwide rolling build" \
-            --notes "Auto build from build/accountwide @ ${{ github.sha }} ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          # Keep only the newest rolling release so releases/latest points at it
+          OLD_TAGS=$(gh release list --json tagName --jq '.[].tagName' \
+            | grep -E '^(accountwide-latest|v9\.9\.9-accountwide)' || true)
+          if [ -n "${OLD_TAGS}" ]; then
+            echo "${OLD_TAGS}" | xargs -n1 gh release delete --yes --cleanup-tag
+          fi
+          gh release create "v${VERSION}" \
+            "backend/dist-bin/sub2api_${VERSION}_linux_amd64.tar.gz" \
+            "backend/dist-bin/checksums.txt" \
+            --title "accountwide ${VERSION}" \
+            --notes "Auto build from build/accountwide @ ${VERSION}
+
+Feature: temp-unschedulable rules account_wide option (feat/temp-unsched-account-wide)."
