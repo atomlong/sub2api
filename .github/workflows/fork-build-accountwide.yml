@@ -2,11 +2,10 @@
 # This branch (build/accountwide) is never PRed upstream; the PR branch
 # stays clean. Rebuild by merging feat/temp-unsched-account-wide into it.
 #
-# Version scheme ${VERSION}-accountwide.${date}.${sha} tracks the upstream
-# baseline from cmd/server/VERSION. The in-app updater is patched (see
-# backend/internal/service/update_service.go on this branch) to check the
-# fork's own releases, so it never offers to overwrite this build with a
-# stock upstream release.
+# Version number equals the upstream baseline (cmd/server/VERSION), e.g.
+# v0.2.8. The in-app updater is patched (see backend/internal/service/
+# update_service.go on this branch) to check the fork's own releases, so it
+# never offers to overwrite this build with a stock upstream release.
 name: Fork Build (accountwide)
 
 on:
@@ -51,8 +50,7 @@ jobs:
       - name: Build backend (embed) and package
         working-directory: backend
         run: |
-          BASE_VER="$(cat cmd/server/VERSION)"
-          VERSION="${BASE_VER}-accountwide.$(date -u +%Y%m%d).$(git rev-parse --short HEAD)"
+          VERSION="$(cat cmd/server/VERSION)"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           CGO_ENABLED=0 go build -tags embed -trimpath \
             -ldflags="-s -w -X main.Version=${VERSION} -X main.Commit=$(git rev-parse HEAD) -X main.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.BuildType=release" \
