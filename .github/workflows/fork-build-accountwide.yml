@@ -72,6 +72,4 @@ jobs:
             "backend/dist-bin/sub2api_${VERSION}_linux_amd64.tar.gz" \
             "backend/dist-bin/checksums.txt" \
             --title "accountwide ${VERSION}" \
-            --notes "Auto build from build/accountwide @ ${VERSION}
-
-Feature: temp-unschedulable rules account_wide option (feat/temp-unsched-account-wide)."
+            --notes "Auto build from build/accountwide @ ${VERSION} — feature: temp-unschedulable rules account_wide option (feat/temp-unsched-account-wide)."
