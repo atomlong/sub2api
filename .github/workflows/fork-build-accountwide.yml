@@ -1,0 +1,59 @@
+# Fork-only rolling build for the account_wide feature branch.
+# This branch (build/accountwide) is never PRed upstream; the PR branch
+# stays clean. Rebuild by merging feat/temp-unsched-account-wide into it.
+name: Fork Build (accountwide)
+
+on:
+  push:
+    branches: [build/accountwide]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Build backend (embed)
+        working-directory: backend
+        run: |
+          VERSION="0.0.0-accountwide.$(date -u +%Y%m%d).$(git rev-parse --short HEAD)"
+          CGO_ENABLED=0 go build -tags embed -trimpath \
+            -ldflags="-s -w -X main.Version=${VERSION} -X main.Commit=$(git rev-parse HEAD) -X main.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o dist-bin/sub2api ./cmd/server
+          echo "${VERSION}" > dist-bin/VERSION.txt
+          cd dist-bin && tar czf sub2api-linux-amd64.tar.gz sub2api VERSION.txt
+
+      - name: Roll release (tag accountwide-latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete accountwide-latest --yes --cleanup-tag || true
+          gh release create accountwide-latest \
+            backend/dist-bin/sub2api-linux-amd64.tar.gz \
+            --title "accountwide rolling build" \
+            --notes "Auto build from build/accountwide @ ${{ github.sha }} ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
